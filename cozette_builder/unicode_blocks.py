@@ -4,6 +4,8 @@ import unicodedata
 import urllib.request
 from pathlib import Path
 
+from fontTools.agl import LEGACY_AGL2UV, UV2AGL
+
 UCD = f"https://www.unicode.org/Public/{unicodedata.unidata_version}/ucd/"
 
 
@@ -61,3 +63,32 @@ def unicode_path(codepoint: int) -> Path:
     )
 
     return Path(plane_dir, block_dir, filename)
+
+
+# Old Adobe names missing from AGLFN:
+# keep only the "afii…" and "…commaaccent" ones
+LEGACY_NAMES = {}
+for _name, _codepoints in sorted(LEGACY_AGL2UV.items()):
+    if len(_codepoints) == 1 and (
+        _name.startswith("afii") or _name.endswith("commaaccent")
+    ):
+        LEGACY_NAMES.setdefault(_codepoints[0], _name)
+
+
+def glyph_name(codepoint: int) -> str:
+    """Return the BDF STARTCHAR name for a codepoint."""
+    if codepoint in UV2AGL:
+        return UV2AGL[codepoint]
+    if codepoint in LEGACY_NAMES:
+        return LEGACY_NAMES[codepoint]
+    if codepoint <= 0xFFFF:
+        return f"uni{codepoint:04X}"
+    return f"u{codepoint:05X}"
+
+
+def parse_unicode_path(path: str | Path) -> tuple[int, str]:
+    """Return (codepoint, STARTCHAR name) from a glyph path."""
+    stem = Path(path).stem  # "E0023-tag-number-sign"
+    codepoint = int(stem.split("-", 1)[0], 16)  # 0xE0023
+
+    return codepoint, glyph_name(codepoint)
