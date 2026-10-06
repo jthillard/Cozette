@@ -61,32 +61,25 @@ def main():
 
             box_width = int(bounding_box_txt.group(1))
             box_height = int(bounding_box_txt.group(2))
-            box_offset = (
+            box_offset = [
                 int(bounding_box_txt.group(3)),
                 CHAR_HEIGHT - box_height - int(bounding_box_txt.group(4)) - 3,
-            )
-
-            # Offsets can be negative
-            if box_offset[0] < 0:
-                print(
-                    "Skipping ",
-                    hex(encoding),
-                    "because it has negative horizontal offset",
-                )
-                continue
-            # assert box_offset[0] >= 0
-            if box_offset[1] < 0:
-                print(
-                    "Skipping ",
-                    hex(encoding),
-                    "because it has negative vertical offset",
-                )
-                continue
-            # assert box_offset[1] >= 0
+            ]
 
             path = Path(f"{OUTPUT_DIR}/{unicode_path(encoding)}")
             os.makedirs(path.parent, exist_ok=True)
             with open(path, "w") as f:
+                # Offsets can be negative
+                if box_offset[0] < 0 or box_offset[1] < 0:
+                    f.write(
+                        f"@offset={min(box_offset[0], 0)},{min(box_offset[1], 0)};"
+                    )
+
+                    if box_offset[0] < 0:
+                        box_offset[0] = 0
+                    if box_offset[1] < 0:
+                        box_offset[1] = 0
+
                 f.write("\n" * box_offset[1])
                 for line_txt in bitmap:
                     f.write(" " * box_offset[0])

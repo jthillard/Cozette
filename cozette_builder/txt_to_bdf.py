@@ -1,6 +1,7 @@
 #!/bin/python3
 
 import os
+import re
 import unicodedata
 
 from config import CHAR_HEIGHT
@@ -96,7 +97,16 @@ def device_width(codepoint: int, has_pixels: bool, right_edge: int) -> int:
 
 def make_glyph(output, codepoint: int, start_char_name: str, glyph_txt: str):
     """Add a glyph to the output BDF file"""
-    bitmap_txt = glyph_txt.split("\n")
+
+    additional_offset = (0, 0)
+    additional_offset_match = re.search(r"@offset=(-?\d+),(-?\d+);", glyph_txt)
+    if additional_offset_match is not None:
+        additional_offset = (
+            int(additional_offset_match.group(1)),
+            int(additional_offset_match.group(2)),
+        )
+
+    bitmap_txt = glyph_txt.split(";")[-1].split("\n")
 
     # Compute the glyph bounding box
 
@@ -134,10 +144,14 @@ def make_glyph(output, codepoint: int, start_char_name: str, glyph_txt: str):
 
     # Remove blank chars used as offset, and pad every row to the bounding
     # width so that each row is encoded with the same number of bytes
-    bitmap_txt = map(
+    bitmap_txt = list(map(
         lambda x: x[horizontal_offset:][:bounding_width].ljust(bounding_width),
         bitmap_txt,
-    )
+    ))
+
+    horizontal_offset += additional_offset[0]
+    # Textual offsets go downwards, while BDF offsets go upwards
+    vertical_offset -= additional_offset[1]
 
     # Blank glyphs are a single unlit pixel, its position doesn't matter
     if not has_pixels:
@@ -146,7 +160,9 @@ def make_glyph(output, codepoint: int, start_char_name: str, glyph_txt: str):
 
     output.write(f"STARTCHAR {start_char_name}\n")
     output.write(f"ENCODING {codepoint}\n")
-    dwidth = device_width(codepoint, has_pixels, max_width + 1)
+    dwidth = device_width(
+        codepoint, has_pixels, max_width + 1 + additional_offset[0]
+    )
     output.write(f"SWIDTH {SWIDTHS.get(dwidth, 500)} 0\n")
     output.write(f"DWIDTH {dwidth} 0\n")
     output.write(f"BBX {bounding_width} {bounding_height}")
